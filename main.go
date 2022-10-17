@@ -141,7 +141,7 @@ func (c *ociDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
 
 func patchRequest(cfg *ociDNSProviderConfig, ch *v1alpha1.ChallengeRequest, operation dns.RecordOperationOperationEnum) dns.PatchZoneRecordsRequest {
 	domain := strings.TrimSuffix(ch.ResolvedFQDN, ".")
-	rtype := "txt"
+	rtype := "TXT"
 	ttl := 60
 
 	return dns.PatchZoneRecordsRequest{
@@ -264,10 +264,10 @@ func getDefaultRetryPolicy() *common.RetryPolicy {
 	// how many times to do the retry
 	attempts := uint(10)
 
-	// retry for all non-200 status code
+	// retry for non-200 status code and certain 400 responses that may not be the client's fault
 	retryOnAllNon200ResponseCodes := func(r common.OCIOperationResponse) bool {
 		response := r.Response.HTTPResponse()
-		retry := !((r.Error == nil && 199 < response.StatusCode && response.StatusCode < 300) || response.StatusCode == 401)
+		retry := !((r.Error == nil && 199 < response.StatusCode && response.StatusCode < 300) || (400 <= response.StatusCode && response.StatusCode <= 407) || (411 <= response.StatusCode && response.StatusCode <= 417))
 		if retry {
 			klog.V(6).Infof("request %s %s responded %s; retrying...", response.Request.Method, response.Request.URL.String(), response.Status)
 		}
