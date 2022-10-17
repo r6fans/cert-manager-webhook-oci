@@ -123,8 +123,5 @@ Next, create config files based on the `*.sample` files in the `testdata/oci` di
 You can then run the test suite with:
 
 ```bash
-# first install necessary binaries (only required once)
-./scripts/fetch-test-binaries.sh
-# then run the tests
-TEST_ZONE_NAME=example.com. make verify
+TEST_ZONE_NAME=example.com. make test
 ```
