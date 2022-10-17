@@ -3,7 +3,7 @@
 This solver can be used when you want to use cert-manager with Oracle Cloud Infrastructure as a DNS provider.
 
 ## Requirements
--   [go](https://golang.org/) >= 1.13.0 *only for development*
+-   [go](https://golang.org/) >= 1.17 *only for development*
 -   [helm](https://helm.sh/) >= v3.0.0
 -   [kubernetes](https://kubernetes.io/) >= v1.14.0
 -   [cert-manager](https://cert-manager.io/) >= 1.0
