@@ -22,10 +22,6 @@ import (
 	"github.com/oracle/oci-go-sdk/dns"
 )
 
-// GroupName is used to identify the company or business unit that created this webhook.
-// This name will need to be referenced in each Issuer's `webhook` stanza to inform
-// cert-manager of where to send ChallengePayload resources in order to solve the DNS01 challenge.
-// This group name should be **unique**, hence using your own company's domain here is recommended.
 var GroupName = os.Getenv("GROUP_NAME")
 
 func main() {
@@ -97,10 +93,9 @@ func (c *ociDNSProviderSolver) Name() string {
 // cert-manager itself will later perform a self check to ensure that the
 // solver has correctly configured the DNS provider.
 func (c *ociDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
-	klog.V(6).Infof("call function Present: namespace=%s, zone=%s, fqdn=%s", ch.ResourceNamespace, ch.ResolvedZone, ch.ResolvedFQDN)
 	cfg, err := loadConfig(ch.Config)
 	if err != nil {
-		return fmt.Errorf("unable to load config: %v", err)
+		return err
 	}
 
 	ociDNSClient, err := c.ociDNSClient(&cfg, ch.ResourceNamespace)
@@ -127,7 +122,7 @@ func (c *ociDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
 	klog.V(6).Infof("call function CleanUp: namespace=%s, zone=%s, fqdn=%s", ch.ResourceNamespace, ch.ResolvedZone, ch.ResolvedFQDN)
 	cfg, err := loadConfig(ch.Config)
 	if err != nil {
-		return fmt.Errorf("unable to load config: %v", err)
+		return err
 	}
 
 	ociDNSClient, err := c.ociDNSClient(&cfg, ch.ResourceNamespace)
@@ -178,12 +173,12 @@ func patchRequest(cfg *ociDNSProviderConfig, ch *v1alpha1.ChallengeRequest, oper
 // The stopCh can be used to handle early termination of the webhook, in cases
 // where a SIGTERM or similar signal is sent to the webhook process.
 func (c *ociDNSProviderSolver) Initialize(kubeClientConfig *rest.Config, stopCh <-chan struct{}) error {
-	k8sClient, err := kubernetes.NewForConfig(kubeClientConfig)
+	cl, err := kubernetes.NewForConfig(kubeClientConfig)
 	if err != nil {
 		return err
 	}
 
-	c.client = k8sClient
+	c.client = cl
 
 	return nil
 }
@@ -197,7 +192,7 @@ func loadConfig(cfgJSON *extapi.JSON) (ociDNSProviderConfig, error) {
 		return cfg, nil
 	}
 	if err := json.Unmarshal(cfgJSON.Raw, &cfg); err != nil {
-		return cfg, fmt.Errorf("cannot unmarshal raw JSON: %v", err)
+		return cfg, fmt.Errorf("error decoding solver config: %v", err)
 	}
 
 	return cfg, nil
