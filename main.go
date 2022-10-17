@@ -202,7 +202,7 @@ func loadConfig(cfgJSON *extapi.JSON) (ociDNSProviderConfig, error) {
 func (c *ociDNSProviderSolver) ociDNSClient(cfg *ociDNSProviderConfig, namespace string) (*dns.DnsClient, error) {
 	secretName := cfg.OCIProfileSecretRef
 	klog.V(6).Infof("Trying to load oci profile from secret `%s` in namespace `%s`", secretName, namespace)
-	sec, err := c.client.CoreV1().Secrets(namespace).Get(secretName, metav1.GetOptions{})
+	sec, err := c.client.CoreV1().Secrets(namespace).Get(context.Background(), secretName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("unable to get secret `%s/%s`; %v", secretName, namespace, err)
 	}
