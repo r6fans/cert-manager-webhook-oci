@@ -120,7 +120,7 @@ func (c *ociDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 // This is in order to facilitate multiple DNS validations for the same domain
 // concurrently.
 func (c *ociDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
-	klog.V(6).Infof("call function CleanUp: namespace=%s, zone=%s, fqdn=%s", ch.ResourceNamespace, ch.ResolvedZone, ch.ResolvedFQDN)
+	klog.V(3).InfoS("call function CleanUp", "namespace", ch.ResourceNamespace, "zone", ch.ResolvedZone, "fqdn", ch.ResolvedFQDN)
 	cfg, err := loadConfig(ch.Config)
 	if err != nil {
 		return err
@@ -204,10 +204,10 @@ func (c *ociDNSProviderSolver) ociDNSClient(cfg *ociDNSProviderConfig, namespace
 	var configProvider common.ConfigurationProvider
 	secretName := cfg.OCIProfileSecretRef
 
-	klog.V(6).Infof("Trying to load oci profile from secret `%s` in namespace `%s`", secretName, namespace)
+	klog.V(3).InfoS("Trying to load oci profile from secret", "secret", secretName, "namespace", namespace)
 	sec, err := c.client.CoreV1().Secrets(namespace).Get(context.Background(), secretName, metav1.GetOptions{})
 	if err != nil {
-		klog.V(6).Infof("Did not find a secret for oci configuration. Using instance principal auth.")
+		klog.V(3).InfoS("Did not find a secret for oci configuration. Using instance principal auth.")
 		configProvider, err2 = auth.InstancePrincipalConfigurationProvider()
 		if err2 != nil {
 			return nil, fmt.Errorf("unable to get secret `%s/%s` and instance principal auth also failed; %v; %v", secretName, namespace, err, err2)
@@ -276,7 +276,7 @@ func getDefaultRetryPolicy() *common.RetryPolicy {
 		response := r.Response.HTTPResponse()
 		retry := !((r.Error == nil && 199 < response.StatusCode && response.StatusCode < 300) || (400 <= response.StatusCode && response.StatusCode <= 407) || (411 <= response.StatusCode && response.StatusCode <= 417))
 		if retry {
-			klog.V(6).Infof("request %s %s responded %s; retrying...", response.Request.Method, response.Request.URL.String(), response.Status)
+			klog.V(3).InfoS("retrying", "request method", response.Request.Method, "request", response.Request.URL.String(), "response", response.Status)
 		}
 		return retry
 	}
@@ -288,7 +288,7 @@ func getExponentialBackoffRetryPolicy(n uint, fn func(r common.OCIOperationRespo
 	exponentialBackoff := func(r common.OCIOperationResponse) time.Duration {
 		response := r.Response.HTTPResponse()
 		duration := time.Duration(math.Pow(float64(2), float64(r.AttemptNumber-1))) * time.Second
-		klog.V(6).Infof("backing off %s to retry %s %s after %d attempts", duration, response.Request.Method, response.Request.URL.String(), r.AttemptNumber)
+		klog.V(3).InfoS("backing off to retry", "duration", duration, "request method", response.Request.Method, "request", response.Request.URL.String(), "attempts", r.AttemptNumber)
 		return duration
 	}
 	policy := common.NewRetryPolicy(n, fn, exponentialBackoff)
