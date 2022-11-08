@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/cert-manager/cert-manager v1.8.2
-	github.com/oracle/oci-go-sdk/v65 v65.23.0
+	github.com/oracle/oci-go-sdk/v65 v65.25.0
 	k8s.io/apiextensions-apiserver v0.23.4
 	k8s.io/apimachinery v0.23.4
 	k8s.io/client-go v0.23.4

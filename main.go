@@ -19,6 +19,7 @@ import (
 	"github.com/cert-manager/cert-manager/pkg/acme/webhook/cmd"
 
 	"github.com/oracle/oci-go-sdk/v65/common"
+	"github.com/oracle/oci-go-sdk/v65/common/auth"
 	"github.com/oracle/oci-go-sdk/v65/dns"
 )
 
@@ -200,44 +201,51 @@ func loadConfig(cfgJSON *extapi.JSON) (ociDNSProviderConfig, error) {
 
 // ociDNSClient is a helper function to initialize a DNS client from the oci-sdk
 func (c *ociDNSProviderSolver) ociDNSClient(cfg *ociDNSProviderConfig, namespace string) (*dns.DnsClient, error) {
+	var err2 error
+	var configProvider common.ConfigurationProvider
 	secretName := cfg.OCIProfileSecretRef
+
 	klog.V(6).Infof("Trying to load oci profile from secret `%s` in namespace `%s`", secretName, namespace)
 	sec, err := c.client.CoreV1().Secrets(namespace).Get(context.Background(), secretName, metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("unable to get secret `%s/%s`; %v", secretName, namespace, err)
-	}
+		klog.V(6).Infof("Did not find a secret for oci configuration. Using instance principal auth.")
+		configProvider, err2 = auth.InstancePrincipalConfigurationProvider()
+		if err2 != nil {
+			return nil, fmt.Errorf("unable to get secret `%s/%s` and instance principal auth also failed; %v; %v", secretName, namespace, err, err2)
+		}
+	} else {
+		tenancy, err := stringFromSecretData(&sec.Data, "tenancy")
+		if err != nil {
+			return nil, fmt.Errorf("unable to get tenancy from secret `%s/%s`; %v", secretName, namespace, err)
+		}
 
-	tenancy, err := stringFromSecretData(&sec.Data, "tenancy")
-	if err != nil {
-		return nil, fmt.Errorf("unable to get tenancy from secret `%s/%s`; %v", secretName, namespace, err)
-	}
+		user, err := stringFromSecretData(&sec.Data, "user")
+		if err != nil {
+			return nil, fmt.Errorf("unable to get user from secret `%s/%s`; %v", secretName, namespace, err)
+		}
 
-	user, err := stringFromSecretData(&sec.Data, "user")
-	if err != nil {
-		return nil, fmt.Errorf("unable to get user from secret `%s/%s`; %v", secretName, namespace, err)
-	}
+		region, err := stringFromSecretData(&sec.Data, "region")
+		if err != nil {
+			return nil, fmt.Errorf("unable to get region from secret `%s/%s`; %v", secretName, namespace, err)
+		}
 
-	region, err := stringFromSecretData(&sec.Data, "region")
-	if err != nil {
-		return nil, fmt.Errorf("unable to get region from secret `%s/%s`; %v", secretName, namespace, err)
-	}
+		fingerprint, err := stringFromSecretData(&sec.Data, "fingerprint")
+		if err != nil {
+			return nil, fmt.Errorf("unable to get fingerprint from secret `%s/%s`; %v", secretName, namespace, err)
+		}
 
-	fingerprint, err := stringFromSecretData(&sec.Data, "fingerprint")
-	if err != nil {
-		return nil, fmt.Errorf("unable to get fingerprint from secret `%s/%s`; %v", secretName, namespace, err)
-	}
+		privateKey, err := stringFromSecretData(&sec.Data, "privateKey")
+		if err != nil {
+			return nil, fmt.Errorf("unable to get privateKey from secret `%s/%s`; %v", secretName, namespace, err)
+		}
 
-	privateKey, err := stringFromSecretData(&sec.Data, "privateKey")
-	if err != nil {
-		return nil, fmt.Errorf("unable to get privateKey from secret `%s/%s`; %v", secretName, namespace, err)
-	}
+		privateKeyPassphrase, err := stringFromSecretData(&sec.Data, "privateKeyPassphrase")
+		if err != nil {
+			return nil, fmt.Errorf("unable to get privateKeyPassphrase from secret `%s/%s`; %v", secretName, namespace, err)
+		}
 
-	privateKeyPassphrase, err := stringFromSecretData(&sec.Data, "privateKeyPassphrase")
-	if err != nil {
-		return nil, fmt.Errorf("unable to get privateKeyPassphrase from secret `%s/%s`; %v", secretName, namespace, err)
+		configProvider = common.NewRawConfigurationProvider(tenancy, user, region, fingerprint, privateKey, &privateKeyPassphrase)
 	}
-
-	configProvider := common.NewRawConfigurationProvider(tenancy, user, region, fingerprint, privateKey, &privateKeyPassphrase)
 
 	dnsClient, err := dns.NewDnsClientWithConfigurationProvider(configProvider)
 	if err != nil {
