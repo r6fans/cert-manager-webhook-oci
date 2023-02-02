@@ -60,12 +60,7 @@ helm repo:
     name: alpine/helm:3.10.2
     entrypoint: [""]
   script:
-    ## below code is required to keep helm packages of previous builds, but it cannot work as long as https://gitlab.com/gitlab-org/gitlab/issues/5813 is not resolved
-    # - apk add --no-cache jq
-    # - 'PREVIOUS_TAG_PIPELINE=$(wget -q -O - --header "JOB-TOKEN: $CI_JOB_TOKEN" "https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/pipelines?scope=tags&status=success&order_by=updated_at&sort=desc" | jq ".[0].id")'
-    # - '[ $PREVIOUS_TAG_PIPELINE != "null" ] && PREVIOUS_TAG_PAGES_JOB=$(wget -q -O - --header "JOB-TOKEN: $CI_JOB_TOKEN" "https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/pipelines/$PREVIOUS_TAG_PIPELINE/jobs?scope=success" | jq ".[] | select(.name="pages") | .id")'
-    # - '[ $PREVIOUS_TAG_PAGES_JOB != "null" ] && wget --output-document previous-pages.zip --header "JOB-TOKEN: $CI_JOB_TOKEN" "https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/jobs/$PREVIOUS_TAG_PAGES_JOB/artifacts"'
-    - 'wget --output-document previous-pages.zip --header "JOB-TOKEN: $CI_JOB_TOKEN" "https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/jobs/artifacts/master/download?job=pages" || echo "no previous pages"'
+    - 'curl -sSLo previous-pages.zip --header "JOB-TOKEN: $CI_JOB_TOKEN" "https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/jobs/artifacts/master/download?job=helm%20repo" || echo "no previous pages"'
     - "[ -f previous-pages.zip ] && unzip -n previous-pages.zip"
     - mkdir -p public
     - "echo \"User-Agent: *\nDisallow: /\" > public/robots.txt"
