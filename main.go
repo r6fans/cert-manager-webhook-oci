@@ -23,9 +23,8 @@ import (
 	"github.com/oracle/oci-go-sdk/v65/dns"
 )
 
-var GroupName = os.Getenv("GROUP_NAME")
-
 func main() {
+	var GroupName = os.Getenv("GROUP_NAME")
 	if GroupName == "" {
 		panic("GROUP_NAME must be specified")
 	}
@@ -146,7 +145,7 @@ func patchRequest(ch *v1alpha1.ChallengeRequest, operation dns.RecordOperationOp
 	ttl := 60
 
 	return dns.PatchZoneRecordsRequest{
-		ZoneNameOrId:  &ch.ResolvedZone,
+		ZoneNameOrId: &ch.ResolvedZone,
 
 		PatchZoneRecordsDetails: dns.PatchZoneRecordsDetails{
 			Items: []dns.RecordOperation{
