@@ -17,4 +17,4 @@
 # Test data and tools
 /testdata/oci/*
 !/testdata/oci/*.sample
-_test/*
+.test/**

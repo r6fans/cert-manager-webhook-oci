@@ -9,25 +9,23 @@ OUT := $(shell pwd)/deploy
 KUBE_VERSION=1.24.2
 
 $(shell mkdir -p "$(OUT)")
-export TEST_ASSET_ETCD=_test/kubebuilder/bin/etcd
-export TEST_ASSET_KUBE_APISERVER=_test/kubebuilder/bin/kube-apiserver
-export TEST_ASSET_KUBECTL=_test/kubebuilder/bin/kubectl
+export TEST_ASSET_ETCD=.test/kubebuilder/bin/etcd
+export TEST_ASSET_KUBE_APISERVER=.test/kubebuilder/bin/kube-apiserver
+export TEST_ASSET_KUBECTL=.test/kubebuilder/bin/kubectl
 
-test: _test/kubebuilder
-	/usr/local/opt/go@1.17/bin/go test -timeout 30s -v .
+test: .test/kubebuilder
+	go test -v .
 
-_test/kubebuilder:
-	curl -fsSL https://go.kubebuilder.io/test-tools/$(KUBE_VERSION)/$(OS)/$(ARCH) -o kubebuilder-tools.tar.gz
-	mkdir -p _test/kubebuilder
-	tar -xvf kubebuilder-tools.tar.gz
-	mv kubebuilder/bin _test/kubebuilder/
-	rm kubebuilder-tools.tar.gz
-	rm -R kubebuilder
+.test/kubebuilder:
+	mkdir -p .test
+	curl -fsSL https://go.kubebuilder.io/test-tools/$(KUBE_VERSION)/$(OS)/$(ARCH) -o .test/kubebuilder-tools.tar.gz
+	tar -C .test -xvf .test/kubebuilder-tools.tar.gz
+	rm .test/kubebuilder-tools.tar.gz
 
 clean: clean-kubebuilder
 
 clean-kubebuilder:
-	rm -Rf _test/kubebuilder
+	rm -rf .test/kubebuilder
 
 build:
 	docker build -t "$(IMAGE_NAME):$(IMAGE_TAG)" .
@@ -38,5 +36,5 @@ rendered-manifest.yaml:
 	    cert-manager-webhook-oci \
         --set image.repository=$(IMAGE_NAME) \
         --set image.tag=$(IMAGE_TAG) \
-		--namespace cert-manager \
+		    --namespace cert-manager \
         deploy/cert-manager-webhook-oci > "$(OUT)/rendered-manifest.yaml"
