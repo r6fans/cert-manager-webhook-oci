@@ -71,6 +71,9 @@ helm repo:
     - "echo \"User-Agent: *\nDisallow: /\" > public/robots.txt"
     - helm package deploy/cert-manager-webhook-oci --destination public
     - helm repo index --url https://${CI_PROJECT_NAMESPACE}.gitlab.io/${CI_PROJECT_NAME} public
+    - cp -f deploy/index.html.pre public/index.html
+    - ls -vr public/ | grep .tgz | xargs -n 1 -I {} echo "      <li><a href=\"./{}\">{}</a></li>" >> public/index.html
+    - cat deploy/index.html.post >> public/index.html
   only:
     - master
     - tags

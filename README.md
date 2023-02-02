@@ -3,10 +3,11 @@
 This solver can be used when you want to use cert-manager with Oracle Cloud Infrastructure as a DNS provider.
 
 ## Requirements
--   [go](https://golang.org/) >= 1.17 *only for development*
--   [helm](https://helm.sh/) >= v3.0.0
--   [kubernetes](https://kubernetes.io/) >= v1.14.0
--   [cert-manager](https://cert-manager.io/) >= 1.0
+
+- [go](https://golang.org/) >= 1.17 _only for development_
+- [helm](https://helm.sh/) >= v3.0.0
+- [kubernetes](https://kubernetes.io/) >= v1.14.0
+- [cert-manager](https://cert-manager.io/) >= 1.0
 
 ## Installation
 
@@ -17,6 +18,7 @@ Follow the [instructions](https://cert-manager.io/docs/installation/) using the 
 ### Webhook
 
 #### Using public helm chart
+
 ```bash
 helm repo add cert-manager-webhook-oci https://dn13.gitlab.io/cert-manager-webhook-oci
 helm install --namespace cert-manager cert-manager-webhook-oci cert-manager-webhook-oci/cert-manager-webhook-oci
@@ -27,9 +29,11 @@ helm install --namespace cert-manager cert-manager-webhook-oci cert-manager-webh
 ```bash
 helm install --namespace cert-manager cert-manager-webhook-oci deploy/cert-manager-webhook-oci
 ```
+
 **Note**: The kubernetes resources used to install the Webhook should be deployed within the same namespace as the cert-manager.
 
 To uninstall the webhook run
+
 ```bash
 helm uninstall --namespace cert-manager cert-manager-webhook-oci
 ```
@@ -37,8 +41,9 @@ helm uninstall --namespace cert-manager cert-manager-webhook-oci
 ## Issuer
 
 Create a `ClusterIssuer` or `Issuer` resource as following:
+
 ```yaml
-apiVersion: cert-manager.io/v1alpha2
+apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
   name: letsencrypt-staging
@@ -61,15 +66,16 @@ spec:
             solverName: oci
             config:
               ociProfileSecretName: oci-profile
-              compartmentOCID: ocid-of-compartment-to-use
 ```
 
 ### Credentials
+
 In order to access the Oracle Cloud Infrastructure API, the webhook needs an OCI profile configuration.
 
 If you choose another name for the secret than `oci-profile`, ensure you modify the value of `ociProfileSecretName` in the `[Cluster]Issuer`.
 
 The secret for the example above will look like this:
+
 ```yaml
 apiVersion: v1
 kind: Secret
@@ -93,7 +99,7 @@ stringData:
 Finally you can create certificates, for example:
 
 ```yaml
-apiVersion: cert-manager.io/v1alpha2
+apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: example-cert
