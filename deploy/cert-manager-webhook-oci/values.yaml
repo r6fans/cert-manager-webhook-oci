@@ -13,7 +13,7 @@ certManager:
 image:
   repository: registry.gitlab.com/dn13/cert-manager-webhook-oci
   tag: ""
-  pullPolicy: "IfNotPresent"
+  pullPolicy: ""
 
 nameOverride: ""
 fullnameOverride: ""
