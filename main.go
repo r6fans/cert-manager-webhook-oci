@@ -9,26 +9,22 @@ import (
 	"strings"
 	"time"
 
-	extapi "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	extapi "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
-	"github.com/jetstack/cert-manager/pkg/acme/webhook/apis/acme/v1alpha1"
-	"github.com/jetstack/cert-manager/pkg/acme/webhook/cmd"
+	"github.com/cert-manager/cert-manager/pkg/acme/webhook/apis/acme/v1alpha1"
+	"github.com/cert-manager/cert-manager/pkg/acme/webhook/cmd"
 
-	"github.com/oracle/oci-go-sdk/common"
-	"github.com/oracle/oci-go-sdk/dns"
+	"github.com/oracle/oci-go-sdk/v65/common"
+	"github.com/oracle/oci-go-sdk/v65/common/auth"
+	"github.com/oracle/oci-go-sdk/v65/dns"
 )
 
-// GroupName is used to identify the company or business unit that created this webhook.
-// This name will need to be referenced in each Issuer's `webhook` stanza to inform
-// cert-manager of where to send ChallengePayload resources in order to solve the DNS01 challenge.
-// This group name should be **unique**, hence using your own company's domain here is recommended.
-var GroupName = os.Getenv("GROUP_NAME")
-
 func main() {
+	var GroupName = os.Getenv("GROUP_NAME")
 	if GroupName == "" {
 		panic("GROUP_NAME must be specified")
 	}
@@ -45,7 +41,7 @@ func main() {
 
 // ociDNSProviderSolver implements the provider-specific logic needed to
 // 'present' an ACME challenge TXT record for your own DNS provider.
-// To do so, it must implement the `github.com/jetstack/cert-manager/pkg/acme/webhook.Solver`
+// To do so, it must implement the `github.com/cert-manager/cert-manager/pkg/acme/webhook.Solver`
 // interface.
 type ociDNSProviderSolver struct {
 	// If a Kubernetes 'clientset' is needed, you must:
@@ -97,10 +93,9 @@ func (c *ociDNSProviderSolver) Name() string {
 // cert-manager itself will later perform a self check to ensure that the
 // solver has correctly configured the DNS provider.
 func (c *ociDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
-	klog.V(6).Infof("call function Present: namespace=%s, zone=%s, fqdn=%s", ch.ResourceNamespace, ch.ResolvedZone, ch.ResolvedFQDN)
 	cfg, err := loadConfig(ch.Config)
 	if err != nil {
-		return fmt.Errorf("unable to load config: %v", err)
+		return err
 	}
 
 	ociDNSClient, err := c.ociDNSClient(&cfg, ch.ResourceNamespace)
@@ -110,7 +105,7 @@ func (c *ociDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 
 	ctx := context.Background()
 
-	_, err = ociDNSClient.PatchZoneRecords(ctx, patchRequest(&cfg, ch, dns.RecordOperationOperationAdd))
+	_, err = ociDNSClient.PatchZoneRecords(ctx, patchRequest(ch, dns.RecordOperationOperationAdd))
 	if err != nil {
 		return fmt.Errorf("can not create TXT record: %v", err)
 	}
@@ -124,10 +119,10 @@ func (c *ociDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 // This is in order to facilitate multiple DNS validations for the same domain
 // concurrently.
 func (c *ociDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
-	klog.V(6).Infof("call function CleanUp: namespace=%s, zone=%s, fqdn=%s", ch.ResourceNamespace, ch.ResolvedZone, ch.ResolvedFQDN)
+	klog.V(3).InfoS("call function CleanUp", "namespace", ch.ResourceNamespace, "zone", ch.ResolvedZone, "fqdn", ch.ResolvedFQDN)
 	cfg, err := loadConfig(ch.Config)
 	if err != nil {
-		return fmt.Errorf("unable to load config: %v", err)
+		return err
 	}
 
 	ociDNSClient, err := c.ociDNSClient(&cfg, ch.ResourceNamespace)
@@ -137,21 +132,20 @@ func (c *ociDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
 
 	ctx := context.Background()
 
-	_, err = ociDNSClient.PatchZoneRecords(ctx, patchRequest(&cfg, ch, dns.RecordOperationOperationRemove))
+	_, err = ociDNSClient.PatchZoneRecords(ctx, patchRequest(ch, dns.RecordOperationOperationRemove))
 	if err != nil {
 		return fmt.Errorf("can not delete TXT record: %v", err)
 	}
 	return nil
 }
 
-func patchRequest(cfg *ociDNSProviderConfig, ch *v1alpha1.ChallengeRequest, operation dns.RecordOperationOperationEnum) dns.PatchZoneRecordsRequest {
+func patchRequest(ch *v1alpha1.ChallengeRequest, operation dns.RecordOperationOperationEnum) dns.PatchZoneRecordsRequest {
 	domain := strings.TrimSuffix(ch.ResolvedFQDN, ".")
-	rtype := "txt"
+	rtype := "TXT"
 	ttl := 60
 
 	return dns.PatchZoneRecordsRequest{
-		CompartmentId: &cfg.CompartmentOCID,
-		ZoneNameOrId:  &ch.ResolvedZone,
+		ZoneNameOrId: &ch.ResolvedZone,
 
 		PatchZoneRecordsDetails: dns.PatchZoneRecordsDetails{
 			Items: []dns.RecordOperation{
@@ -178,12 +172,12 @@ func patchRequest(cfg *ociDNSProviderConfig, ch *v1alpha1.ChallengeRequest, oper
 // The stopCh can be used to handle early termination of the webhook, in cases
 // where a SIGTERM or similar signal is sent to the webhook process.
 func (c *ociDNSProviderSolver) Initialize(kubeClientConfig *rest.Config, stopCh <-chan struct{}) error {
-	k8sClient, err := kubernetes.NewForConfig(kubeClientConfig)
+	cl, err := kubernetes.NewForConfig(kubeClientConfig)
 	if err != nil {
 		return err
 	}
 
-	c.client = k8sClient
+	c.client = cl
 
 	return nil
 }
@@ -197,7 +191,7 @@ func loadConfig(cfgJSON *extapi.JSON) (ociDNSProviderConfig, error) {
 		return cfg, nil
 	}
 	if err := json.Unmarshal(cfgJSON.Raw, &cfg); err != nil {
-		return cfg, fmt.Errorf("cannot unmarshal raw JSON: %v", err)
+		return cfg, fmt.Errorf("error decoding solver config: %v", err)
 	}
 
 	return cfg, nil
@@ -205,44 +199,51 @@ func loadConfig(cfgJSON *extapi.JSON) (ociDNSProviderConfig, error) {
 
 // ociDNSClient is a helper function to initialize a DNS client from the oci-sdk
 func (c *ociDNSProviderSolver) ociDNSClient(cfg *ociDNSProviderConfig, namespace string) (*dns.DnsClient, error) {
+	var err2 error
+	var configProvider common.ConfigurationProvider
 	secretName := cfg.OCIProfileSecretRef
-	klog.V(6).Infof("Trying to load oci profile from secret `%s` in namespace `%s`", secretName, namespace)
-	sec, err := c.client.CoreV1().Secrets(namespace).Get(secretName, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("unable to get secret `%s/%s`; %v", secretName, namespace, err)
-	}
 
-	tenancy, err := stringFromSecretData(&sec.Data, "tenancy")
+	klog.V(3).InfoS("Trying to load oci profile from secret", "secret", secretName, "namespace", namespace)
+	sec, err := c.client.CoreV1().Secrets(namespace).Get(context.Background(), secretName, metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("unable to get tenancy from secret `%s/%s`; %v", secretName, namespace, err)
-	}
+		klog.V(3).InfoS("Did not find a secret for oci configuration. Using instance principal auth.")
+		configProvider, err2 = auth.InstancePrincipalConfigurationProvider()
+		if err2 != nil {
+			return nil, fmt.Errorf("unable to get secret `%s/%s` and instance principal auth also failed; %v; %v", secretName, namespace, err, err2)
+		}
+	} else {
+		tenancy, err := stringFromSecretData(&sec.Data, "tenancy")
+		if err != nil {
+			return nil, fmt.Errorf("unable to get tenancy from secret `%s/%s`; %v", secretName, namespace, err)
+		}
 
-	user, err := stringFromSecretData(&sec.Data, "user")
-	if err != nil {
-		return nil, fmt.Errorf("unable to get user from secret `%s/%s`; %v", secretName, namespace, err)
-	}
+		user, err := stringFromSecretData(&sec.Data, "user")
+		if err != nil {
+			return nil, fmt.Errorf("unable to get user from secret `%s/%s`; %v", secretName, namespace, err)
+		}
 
-	region, err := stringFromSecretData(&sec.Data, "region")
-	if err != nil {
-		return nil, fmt.Errorf("unable to get region from secret `%s/%s`; %v", secretName, namespace, err)
-	}
+		region, err := stringFromSecretData(&sec.Data, "region")
+		if err != nil {
+			return nil, fmt.Errorf("unable to get region from secret `%s/%s`; %v", secretName, namespace, err)
+		}
 
-	fingerprint, err := stringFromSecretData(&sec.Data, "fingerprint")
-	if err != nil {
-		return nil, fmt.Errorf("unable to get fingerprint from secret `%s/%s`; %v", secretName, namespace, err)
-	}
+		fingerprint, err := stringFromSecretData(&sec.Data, "fingerprint")
+		if err != nil {
+			return nil, fmt.Errorf("unable to get fingerprint from secret `%s/%s`; %v", secretName, namespace, err)
+		}
 
-	privateKey, err := stringFromSecretData(&sec.Data, "privateKey")
-	if err != nil {
-		return nil, fmt.Errorf("unable to get privateKey from secret `%s/%s`; %v", secretName, namespace, err)
-	}
+		privateKey, err := stringFromSecretData(&sec.Data, "privateKey")
+		if err != nil {
+			return nil, fmt.Errorf("unable to get privateKey from secret `%s/%s`; %v", secretName, namespace, err)
+		}
 
-	privateKeyPassphrase, err := stringFromSecretData(&sec.Data, "privateKeyPassphrase")
-	if err != nil {
-		return nil, fmt.Errorf("unable to get privateKeyPassphrase from secret `%s/%s`; %v", secretName, namespace, err)
-	}
+		privateKeyPassphrase, err := stringFromSecretData(&sec.Data, "privateKeyPassphrase")
+		if err != nil {
+			return nil, fmt.Errorf("unable to get privateKeyPassphrase from secret `%s/%s`; %v", secretName, namespace, err)
+		}
 
-	configProvider := common.NewRawConfigurationProvider(tenancy, user, region, fingerprint, privateKey, &privateKeyPassphrase)
+		configProvider = common.NewRawConfigurationProvider(tenancy, user, region, fingerprint, privateKey, &privateKeyPassphrase)
+	}
 
 	dnsClient, err := dns.NewDnsClientWithConfigurationProvider(configProvider)
 	if err != nil {
@@ -269,12 +270,12 @@ func getDefaultRetryPolicy() *common.RetryPolicy {
 	// how many times to do the retry
 	attempts := uint(10)
 
-	// retry for all non-200 status code
+	// retry for non-200 status code and certain 400 responses that may not be the client's fault
 	retryOnAllNon200ResponseCodes := func(r common.OCIOperationResponse) bool {
 		response := r.Response.HTTPResponse()
-		retry := !((r.Error == nil && 199 < response.StatusCode && response.StatusCode < 300) || response.StatusCode == 401)
+		retry := !((r.Error == nil && 199 < response.StatusCode && response.StatusCode < 300) || (400 <= response.StatusCode && response.StatusCode <= 407) || (411 <= response.StatusCode && response.StatusCode <= 417))
 		if retry {
-			klog.V(6).Infof("request %s %s responded %s; retrying...", response.Request.Method, response.Request.URL.String(), response.Status)
+			klog.V(3).InfoS("retrying", "request method", response.Request.Method, "request", response.Request.URL.String(), "response", response.Status)
 		}
 		return retry
 	}
@@ -286,7 +287,7 @@ func getExponentialBackoffRetryPolicy(n uint, fn func(r common.OCIOperationRespo
 	exponentialBackoff := func(r common.OCIOperationResponse) time.Duration {
 		response := r.Response.HTTPResponse()
 		duration := time.Duration(math.Pow(float64(2), float64(r.AttemptNumber-1))) * time.Second
-		klog.V(6).Infof("backing off %s to retry %s %s after %d attempts", duration, response.Request.Method, response.Request.URL.String(), r.AttemptNumber)
+		klog.V(3).InfoS("backing off to retry", "duration", duration, "request method", response.Request.Method, "request", response.Request.URL.String(), "attempts", r.AttemptNumber)
 		return duration
 	}
 	policy := common.NewRetryPolicy(n, fn, exponentialBackoff)

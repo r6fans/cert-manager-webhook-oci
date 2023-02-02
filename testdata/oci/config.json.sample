@@ -1,4 +1,4 @@
 {
-    "ociProfileSecretName": "oci-profile",
-    "compartmentOCID": "$OCI_COMPARTMENT_OCID"
+  // [Optional] A Secret name to load config from if not using Instance Principal authentication."
+  "ociProfileSecretName": "oci-profile"
 }
