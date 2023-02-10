@@ -146,6 +146,7 @@ func patchRequest(ch *v1alpha1.ChallengeRequest, operation dns.RecordOperationOp
 
 	return dns.PatchZoneRecordsRequest{
 		ZoneNameOrId: &ch.ResolvedZone,
+		Scope: dns.PatchZoneRecordsScopePrivate,
 
 		PatchZoneRecordsDetails: dns.PatchZoneRecordsDetails{
 			Items: []dns.RecordOperation{
