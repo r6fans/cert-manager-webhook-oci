@@ -105,7 +105,7 @@ func (c *ociDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 
 	ctx := context.Background()
 
-	_, err = ociDNSClient.PatchZoneRecords(ctx, patchRequest(ch, dns.RecordOperationOperationAdd))
+	_, err = ociDNSClient.PatchZoneRecords(ctx, patchRequest(ch, dns.RecordOperationOperationAdd, cfg.CompartmentOCID))
 	if err != nil {
 		return fmt.Errorf("can not create TXT record: %v", err)
 	}
@@ -132,21 +132,23 @@ func (c *ociDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
 
 	ctx := context.Background()
 
-	_, err = ociDNSClient.PatchZoneRecords(ctx, patchRequest(ch, dns.RecordOperationOperationRemove))
+	_, err = ociDNSClient.PatchZoneRecords(ctx, patchRequest(ch, dns.RecordOperationOperationRemove, cfg.CompartmentOCID))
 	if err != nil {
 		return fmt.Errorf("can not delete TXT record: %v", err)
 	}
 	return nil
 }
 
-func patchRequest(ch *v1alpha1.ChallengeRequest, operation dns.RecordOperationOperationEnum) dns.PatchZoneRecordsRequest {
+func patchRequest(ch *v1alpha1.ChallengeRequest, operation dns.RecordOperationOperationEnum, compartmentID string) dns.PatchZoneRecordsRequest {
 	domain := strings.TrimSuffix(ch.ResolvedFQDN, ".")
+	zonename := strings.TrimSuffix(ch.ResolvedZone, ".")
 	rtype := "TXT"
 	ttl := 60
 
 	return dns.PatchZoneRecordsRequest{
-		ZoneNameOrId: &ch.ResolvedZone,
+		ZoneNameOrId: &zonename,
 		Scope: dns.PatchZoneRecordsScopePrivate,
+		CompartmentId: &compartmentID,
 
 		PatchZoneRecordsDetails: dns.PatchZoneRecordsDetails{
 			Items: []dns.RecordOperation{
