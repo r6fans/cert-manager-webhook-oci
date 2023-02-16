@@ -75,6 +75,7 @@ type ociDNSProviderConfig struct {
 
 	CompartmentOCID     string `json:"compartmentOCID"`
 	OCIProfileSecretRef string `json:"ociProfileSecretName"`
+	PrivateViewsOCID    string `json:"privateviewsOCID"`
 }
 
 // Name is used as the name for this DNS solver when referencing it on the ACME
@@ -105,7 +106,7 @@ func (c *ociDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 
 	ctx := context.Background()
 
-	_, err = ociDNSClient.PatchZoneRecords(ctx, patchRequest(ch, dns.RecordOperationOperationAdd, cfg.CompartmentOCID))
+	_, err = ociDNSClient.PatchZoneRecords(ctx, patchRequest(ch, dns.RecordOperationOperationAdd, cfg))
 	if err != nil {
 		return fmt.Errorf("can not create TXT record: %v", err)
 	}
@@ -132,23 +133,23 @@ func (c *ociDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
 
 	ctx := context.Background()
 
-	_, err = ociDNSClient.PatchZoneRecords(ctx, patchRequest(ch, dns.RecordOperationOperationRemove, cfg.CompartmentOCID))
+	_, err = ociDNSClient.PatchZoneRecords(ctx, patchRequest(ch, dns.RecordOperationOperationRemove, cfg))
 	if err != nil {
 		return fmt.Errorf("can not delete TXT record: %v", err)
 	}
 	return nil
 }
 
-func patchRequest(ch *v1alpha1.ChallengeRequest, operation dns.RecordOperationOperationEnum, compartmentID string) dns.PatchZoneRecordsRequest {
+func patchRequest(ch *v1alpha1.ChallengeRequest, operation dns.RecordOperationOperationEnum, cfg ociDNSProviderConfig) dns.PatchZoneRecordsRequest {
 	domain := strings.TrimSuffix(ch.ResolvedFQDN, ".")
-	zonename := strings.TrimSuffix(ch.ResolvedZone, ".")
 	rtype := "TXT"
 	ttl := 60
 
 	return dns.PatchZoneRecordsRequest{
-		ZoneNameOrId: &zonename,
+		ZoneNameOrId: &ch.ResolvedZone,
 		Scope: dns.PatchZoneRecordsScopePrivate,
-		CompartmentId: &compartmentID,
+		CompartmentId: &cfg.CompartmentOCID,
+		ViewId: &cfg.PrivateViewsOCID,
 
 		PatchZoneRecordsDetails: dns.PatchZoneRecordsDetails{
 			Items: []dns.RecordOperation{
